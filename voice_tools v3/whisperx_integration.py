@@ -19,3 +19,4 @@ def align_audio_with_text(audio_path: str, transcript: str, lang: str = "vi") ->
     aligned = whisperx.align(result["segments"], model_a, metadata, audio_path, device, return_char_alignments=False)
     # Mỗi segment là 1 câu hoặc cụm từ, có start/end
     return aligned["segments"]
+
