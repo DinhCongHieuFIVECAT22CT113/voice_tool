@@ -152,6 +152,21 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Ignore ffmpeg binaries and docs
+voice_tools v2/ffmpeg/bin/
+voice_tools v2/ffmpeg/doc/
+voice_tools v2/ffmpeg/presets/
+
+# Ignore icon files
+*.ico
+
+# Ignore PowerShell scripts
+*.ps1
+
+# Ignore other common files
+*.bak
+*.old
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
