@@ -23,6 +23,7 @@ class VoiceAppV3(ctk.CTk):
         self.output_file = ""
         self.cut_mode = ctk.StringVar(value="AI")
         self.output_format = ctk.StringVar(value="wav")
+        self.output_format.trace("w", self.update_output_file_extension)
         self.create_widgets()
 
     def create_widgets(self):
@@ -53,10 +54,22 @@ class VoiceAppV3(ctk.CTk):
             self.lbl_input.configure(text=os.path.basename(path))
 
     def select_output(self):
-        path = filedialog.asksaveasfilename(defaultextension=".wav", filetypes=[("WAV", "*.wav"), ("MP3", "*.mp3")])
+        fmt = self.output_format.get()
+        path = filedialog.asksaveasfilename(
+            defaultextension=f".{fmt}",
+            filetypes=[("WAV", "*.wav"), ("MP3", "*.mp3")],
+        )
         if path:
-            self.output_file = path
-            self.lbl_output.configure(text=os.path.basename(path))
+            base, _ = os.path.splitext(path)
+            self.output_file = f"{base}.{fmt}"
+            self.lbl_output.configure(text=os.path.basename(self.output_file))
+
+    def update_output_file_extension(self, *args):
+        fmt = self.output_format.get()
+        if self.output_file:
+            base, _ = os.path.splitext(self.output_file)
+            self.output_file = f"{base}.{fmt}"
+            self.lbl_output.configure(text=os.path.basename(self.output_file))
 
     def start_processing(self):
         self.status.configure(text="Đang xử lý...")
@@ -110,7 +123,8 @@ class VoiceAppV3(ctk.CTk):
                     chunk += AudioSegment.silent(duration=300-len(chunk))
                 chunks.append(chunk)
                 # Xuất từng đoạn nhỏ nếu muốn
-                out_path = self.output_file.replace(f'.{fmt}', f'_seg{idx+1}.{fmt}')
+                base, ext = os.path.splitext(self.output_file)
+                out_path = f"{base}_seg{idx+1}{ext}"
                 chunk.export(out_path, format=fmt)
             # Ghép lại thành 1 file
             final = sum(chunks[1:], chunks[0]) if chunks else audio
