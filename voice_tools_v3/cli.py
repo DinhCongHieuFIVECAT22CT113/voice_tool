@@ -1,4 +1,4 @@
-"""Command line interface for voice_pause_normalizer."""
+"""Command line interface for voice_tools_v3."""
 
 from __future__ import annotations
 

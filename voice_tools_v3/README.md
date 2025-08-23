@@ -1,6 +1,6 @@
-# Voice Pause Normalizer
+# voice_tools v3
 
-Công cụ dòng lệnh chuẩn hoá khoảng lặng giữa các câu nói tiếng Việt dựa vào dấu câu trong kịch bản.
+CLI chuẩn hoá khoảng lặng giữa các câu nói tiếng Việt dựa vào dấu câu trong kịch bản.
 
 ## Cài đặt
 
@@ -12,7 +12,7 @@ pip install -r requirements.txt
 ## Sử dụng
 
 ```bash
-python -m voice_pause_normalizer.cli \
+python -m voice_tools_v3.cli \
   --audio input.wav \
   --script "script.txt" \
   --out output.mp3 \
