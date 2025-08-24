@@ -28,6 +28,8 @@ def render_plan_with_ffmpeg(
         silence_idx = 0
         for item in plan:
             if item.kind == "speech":
+                if item.end_ms <= item.start_ms:
+                    continue
                 speech_idx += 1
                 seg_path = os.path.join(tmp, f"speech_{speech_idx:03d}.wav")
                 cmd = [
@@ -42,10 +44,10 @@ def render_plan_with_ffmpeg(
                     "-acodec",
                     "pcm_s16le",
                 ]
-                if crossfade_ms > 0:
+                if crossfade_ms > 0 and item.dur_ms > 0:
                     fade_out_start = max(item.dur_ms - crossfade_ms, 0) / 1000
                     fade = (
-                        f"afade=t=in:st=0:d={crossfade_ms/1000:.3f},"
+                        f"afade=t=in:st=0:d={crossfade_ms/1000:.3f},",
                         f"afade=t=out:st={fade_out_start:.3f}:d={crossfade_ms/1000:.3f}"
                     )
                     cmd.extend(["-af", fade])
@@ -53,6 +55,8 @@ def render_plan_with_ffmpeg(
                 _ffmpeg(cmd)
                 concat_lines.append(f"file '{seg_path}'\n")
             else:
+                if item.dur_ms <= 0:
+                    continue
                 silence_idx += 1
                 sil_path = os.path.join(tmp, f"sil_{silence_idx:03d}.wav")
                 cmd = [
@@ -91,7 +95,6 @@ def render_plan_with_ffmpeg(
         ]
         _ffmpeg(cmd)
 
-        final_path = out_path
         if out_format.lower() == "mp3":
             cmd = [
                 "ffmpeg",

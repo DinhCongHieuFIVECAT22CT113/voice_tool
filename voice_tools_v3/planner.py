@@ -42,7 +42,9 @@ def build_plan(
     prev_idx = 0
     for anch in anchors:
         end_idx = anch.idx
-        if end_idx >= len(words):
+        # skip punctuation that maps to a word index we've already passed
+        # or that falls beyond the available words
+        if end_idx >= len(words) or end_idx < prev_idx:
             continue
         start_ms = words[prev_idx].start_ms
         end_ms = words[end_idx].end_ms
