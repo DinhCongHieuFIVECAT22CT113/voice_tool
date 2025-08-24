@@ -24,3 +24,13 @@ python -m voice_tools_v3.cli \
 * `--script` có thể là đường dẫn tới file hoặc chuỗi văn bản được paste trực tiếp.
 * Mặc định xuất `mp3`; chọn `--format wav` nếu muốn WAV.
 * Công cụ giữ nguyên phần voice, chỉ thay khoảng lặng bằng độ dài mục tiêu theo dấu câu.
+
+## Giao diện đơn giản
+
+Có thể khởi chạy giao diện tương tác bằng:
+
+```bash
+python voice_tools_v3/gui.py
+```
+
+Giao diện cho phép chọn file audio, paste trực tiếp kịch bản và xuất file (mặc định MP3).
