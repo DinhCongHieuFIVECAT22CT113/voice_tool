@@ -47,7 +47,7 @@ def render_plan_with_ffmpeg(
                 if crossfade_ms > 0 and item.dur_ms > 0:
                     fade_out_start = max(item.dur_ms - crossfade_ms, 0) / 1000
                     fade = (
-                        f"afade=t=in:st=0:d={crossfade_ms/1000:.3f},",
+                        f"afade=t=in:st=0:d={crossfade_ms/1000:.3f},"
                         f"afade=t=out:st={fade_out_start:.3f}:d={crossfade_ms/1000:.3f}"
                     )
                     cmd.extend(["-af", fade])
