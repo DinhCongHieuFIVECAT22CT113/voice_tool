@@ -2,25 +2,47 @@ import customtkinter as ctk
 from tkinter import filedialog
 from pydub import AudioSegment, silence
 import threading, os, subprocess, sys, time
+
+# Ẩn cửa sổ console ngay khi khởi động (chỉ trên Windows)
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+    except Exception:
+        pass
+
+# ============================
+# Tự động tìm đường dẫn FFMPEG (dùng cho cả exe và py)
+# ============================
 from pydub.utils import which
 
-# ============================
-# Cấu hình FFMPEG nội bộ (không cần cài hệ thống)
-# ============================
-def get_ffmpeg_path():
+def find_ffmpeg():
+    # 1. Kiểm tra biến môi trường PATH
+    ffmpeg_in_path = which("ffmpeg")
+    ffprobe_in_path = which("ffprobe")
+    if ffmpeg_in_path and ffprobe_in_path:
+        return ffmpeg_in_path, ffprobe_in_path
+
+    # 2. Kiểm tra thư mục ffmpeg nội bộ (dùng khi đóng gói exe)
     if hasattr(sys, '_MEIPASS'):
-        base_path = sys._MEIPASS  # Khi chạy exe
+        base_path = sys._MEIPASS
     else:
-        base_path = os.path.abspath(".")  # Khi chạy .py
+        base_path = os.path.abspath(".")
 
     ffmpeg_dir = os.path.join(base_path, "ffmpeg", "bin")
-    if ffmpeg_dir not in os.environ["PATH"]:
-        os.environ["PATH"] += os.pathsep + ffmpeg_dir  # ✅ Cho pydub tự động nhận
-    return os.path.join(ffmpeg_dir, "ffmpeg.exe"), os.path.join(ffmpeg_dir, "ffprobe.exe")
+    ffmpeg_exe = os.path.join(ffmpeg_dir, "ffmpeg.exe")
+    ffprobe_exe = os.path.join(ffmpeg_dir, "ffprobe.exe")
+    if os.path.exists(ffmpeg_exe) and os.path.exists(ffprobe_exe):
+        os.environ["PATH"] += os.pathsep + ffmpeg_dir
+        return ffmpeg_exe, ffprobe_exe
 
-ffmpeg_path, ffprobe_path = get_ffmpeg_path()
-AudioSegment.converter = which("ffmpeg") or ffmpeg_path
-AudioSegment.ffprobe   = which("ffprobe") or ffprobe_path
+    # 3. Báo lỗi nếu không tìm thấy
+    raise FileNotFoundError("Không tìm thấy ffmpeg.exe hoặc ffprobe.exe! Vui lòng kiểm tra lại thư mục ffmpeg.")
+
+# Sử dụng hàm mới
+ffmpeg_path, ffprobe_path = find_ffmpeg()
+AudioSegment.converter = ffmpeg_path
+AudioSegment.ffprobe   = ffprobe_path
 
 # ============================
 # Cấu hình frame logic
@@ -43,7 +65,6 @@ def process_audio(input_path, output_path, silence_thresh, progress_callback, te
     last_end = 0
     total = len(silence_ranges)
 
-    import random
     for i, (start, end) in enumerate(silence_ranges):
         silence_len = end - start
         frame_len = silence_len // FRAME_MS
@@ -51,27 +72,25 @@ def process_audio(input_path, output_path, silence_thresh, progress_callback, te
         if start > last_end:
             result += audio[last_end:start]
 
-        # Cuối câu: frame_len >= 20 thì luôn đưa về 24 frame (800ms)
-        if frame_len >= 20:
+        if frame_len > 20:
+            # Cắt còn đúng 800ms
             head, tail = 200, 100
             mid_sil = PARA_CUT_MS - head - tail
             result += audio[start:start + head]
             result += AudioSegment.silent(duration=mid_sil)
             result += audio[end - tail:end]
 
-        # Giữa câu: 1-6 frame thì bỏ qua, không cắt
-        elif frame_len <= 6:
-            result += audio[start:end]
-
-        # Giữa câu: 6-20 frame thì cắt random còn 5-7 frame
-        elif 6 < frame_len < 20:
-            keep_frames = random.randint(5, 7)
-            keep_ms = keep_frames * FRAME_MS
-            head = keep_ms // 2
-            tail = keep_ms - head
+        elif 6 <= frame_len <= 20:
+            # Cắt còn 6 frame (200ms)
+            head, tail = 100, 50
+            mid_sil = PHRASE_6_MS - head - tail
             result += audio[start:start + head]
-            result += AudioSegment.silent(duration=0)
+            result += AudioSegment.silent(duration=mid_sil)
             result += audio[end - tail:end]
+
+        else:
+            # Giữ nguyên
+            result += audio[start:end]
 
         last_end = end
         percent = round((i + 1) / total * 100)
@@ -100,31 +119,23 @@ class VoiceApp(ctk.CTk):
 
     def create_widgets(self):
         ctk.CTkLabel(self, text="\U0001F6E0\ufe0f Voice Silence Editor", font=("Arial", 24)).pack(pady=10)
-
         ctk.CTkLabel(self, text="\U0001F4E4 Chọn file đầu vào:").pack()
         self.input_btn = ctk.CTkButton(self, text="\U0001F4C2 Duyệt file", command=self.select_input, width=160)
         self.input_btn.pack(pady=4)
         self.input_label = ctk.CTkLabel(self, text="Chưa chọn file.")
         self.input_label.pack()
-
-        ctk.CTkLabel(self, text="\U0001F4BE Nơi lưu file kết quả:").pack(pady=(10, 0))
-        self.output_btn = ctk.CTkButton(self, text="\U0001F4C1 Chọn nơi lưu", command=self.select_output, width=160)
-        self.output_btn.pack(pady=4)
-        self.output_label = ctk.CTkLabel(self, text="Chưa chọn nơi lưu.")
-        self.output_label.pack()
-
+        ctk.CTkLabel(self, text="\U0001F4BE Tên file xuất (không cần chọn nơi lưu):").pack(pady=(10, 0))
+        self.output_name_entry = ctk.CTkEntry(self, placeholder_text="ten_file_xuat", width=200)
+        self.output_name_entry.pack(pady=4)
         ctk.CTkLabel(self, text="\U0001F509 Ngưỡng dB để nhận im lặng (mặc định -45):").pack(pady=(10, 2))
         self.db_input = ctk.CTkEntry(self, placeholder_text="-45", width=100, justify="center")
         self.db_input.pack()
-
         ctk.CTkLabel(self, text="\U0001F4DD Chọn định dạng xuất ra:").pack(pady=(10, 0))
-        self.format_select = ctk.CTkOptionMenu(self, values=["wav", "mp3"], variable=self.output_format)
+        self.format_select = ctk.CTkOptionMenu(self, values=["mp3", "wav"], variable=self.output_format)
         self.format_select.pack()
-
         self.progress = ctk.CTkProgressBar(self, width=500)
         self.progress.set(0)
         self.progress.pack(pady=10)
-
         self.status = ctk.CTkLabel(self, text="", font=("Arial", 13))
         self.status.pack()
 
@@ -141,31 +152,30 @@ class VoiceApp(ctk.CTk):
             self.input_file = path
             self.input_label.configure(text=os.path.basename(path))
 
-    def select_output(self):
-        ext = self.output_format.get()
-        path = filedialog.asksaveasfilename(defaultextension=f".{ext}", filetypes=[(ext.upper(), f"*.{ext}")])
-        if path:
-            self.output_file = path
-            self.output_label.configure(text=os.path.basename(path))
+    # Bỏ hàm chọn nơi lưu, không cần nữa
 
     def update_status(self, text, color="white"):
         self.status.configure(text=text, text_color=color)
 
     def start_processing(self):
-        if not self.input_file or not self.output_file:
-            self.update_status("\u274c Vui lòng chọn đủ file và nơi lưu.", "red")
+        if not hasattr(self, 'input_file') or not self.input_file:
+            self.update_status("\u274c Vui lòng chọn file đầu vào.", "red")
             return
-
+        output_name = self.output_name_entry.get().strip()
+        if not output_name:
+            self.update_status("\u274c Vui lòng nhập tên file xuất.", "red")
+            return
+        import os
+        input_dir = os.path.dirname(self.input_file)
+        self.output_file = os.path.join(input_dir, output_name + ".mp3")
         try:
             db_thresh = int(self.db_input.get()) if self.db_input.get() else -45
         except:
             self.update_status("\u274c Ngưỡng dB phải là số nguyên!", "red")
             return
-
         self.update_status("\u23f3 Chuẩn bị xử lý...", "yellow")
         self.progress.set(0)
         self.link_label.configure(text="")
-
         thread = threading.Thread(target=self.run_processing, args=(db_thresh,))
         thread.start()
 
@@ -191,8 +201,7 @@ class VoiceApp(ctk.CTk):
         if os.path.exists(self.output_file):
             folder = os.path.dirname(os.path.abspath(self.output_file))
             if sys.platform == "win32":
-                # Không bật terminal khi mở explorer
-                subprocess.Popen(f'explorer "{folder}"', creationflags=0x08000000)
+                subprocess.Popen(f'explorer "{folder}"')
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", folder])
             else:
